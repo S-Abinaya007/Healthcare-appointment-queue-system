@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function PatientDashboard({ setPage, currentUser }) {
 
@@ -9,9 +9,43 @@ function PatientDashboard({ setPage, currentUser }) {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
 
-  const [appointment, setAppointment] = useState(null)
+  const [appointments, setAppointments] = useState([])
+  const [queue, setQueue] = useState(null)
+
+  // Get appointments from MongoDB
+  useEffect(() => {
+
+    async function getAppointments() {
+
+      try {
+
+        const response = await fetch(
+          `http://localhost:5000/api/appointments/${currentUser.email}`
+        )
+
+        const data = await response.json()
+
+        if (response.ok) {
+          setAppointments(data)
+        }
+
+      } catch (error) {
+
+        console.log('Failed to fetch appointments')
+
+      }
+
+    }
+
+    if (currentUser) {
+      getAppointments()
+    }
+
+  }, [currentUser])
+
 
   if (!currentUser) {
+
     return (
       <div className="login-page">
 
@@ -36,11 +70,51 @@ function PatientDashboard({ setPage, currentUser }) {
     )
   }
 
+
   function handleLogout() {
     setPage('login')
   }
 
-  function handleBookAppointment() {
+
+  // View Queue for a specific appointment
+
+  async function handleViewQueue(appointment) {
+
+    if (!appointment.token) {
+      alert('This appointment does not have a queue token yet.')
+      return
+    }
+
+    try {
+
+      const response = await fetch(
+        `http://localhost:5000/api/appointments/queue/${appointment._id}`
+      )
+
+      const data = await response.json()
+
+      if (response.ok) {
+
+        setQueue(data)
+
+      } else {
+
+        alert(data.message)
+
+      }
+
+    } catch (error) {
+
+      alert('Cannot connect to the server')
+
+    }
+
+  }
+
+
+  // Book Appointment
+
+  async function handleBookAppointment() {
 
     if (!department || !doctor || !date || !time) {
       alert('Please select all appointment details')
@@ -48,6 +122,8 @@ function PatientDashboard({ setPage, currentUser }) {
     }
 
     const newAppointment = {
+      patientEmail: currentUser.email,
+      patientName: currentUser.name,
       department: department,
       doctor: doctor,
       date: date,
@@ -55,15 +131,52 @@ function PatientDashboard({ setPage, currentUser }) {
       status: 'Upcoming'
     }
 
-    setAppointment(newAppointment)
+    try {
 
-    setShowBooking(false)
+      const response = await fetch(
+        'http://localhost:5000/api/appointments/book',
+        {
+          method: 'POST',
 
-    alert('Appointment booked successfully!')
+          headers: {
+            'Content-Type': 'application/json'
+          },
+
+          body: JSON.stringify(newAppointment)
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.ok) {
+
+        setAppointments([
+          ...appointments,
+          data.appointment
+        ])
+
+        setShowBooking(false)
+
+        alert('Appointment booked successfully!')
+
+      } else {
+
+        alert(data.message)
+
+      }
+
+    } catch (error) {
+
+      alert('Cannot connect to the server')
+
+    }
+
   }
+
 
   return (
     <div className="dashboard">
+
 
       {/* Navbar */}
 
@@ -118,6 +231,7 @@ function PatientDashboard({ setPage, currentUser }) {
 
             </div>
 
+
             <div>
 
               <p>
@@ -131,6 +245,7 @@ function PatientDashboard({ setPage, currentUser }) {
               </p>
 
             </div>
+
 
             <div>
 
@@ -146,6 +261,7 @@ function PatientDashboard({ setPage, currentUser }) {
             </div>
 
           </div>
+
 
           <button className="secondary-btn">
             Edit Profile
@@ -196,7 +312,7 @@ function PatientDashboard({ setPage, currentUser }) {
             <h2>Book Appointment</h2>
 
             <p>
-              Select a department, doctor, date and time.
+              Select a department, doctor, date and time to book an appointment.
             </p>
 
 
@@ -252,12 +368,14 @@ function PatientDashboard({ setPage, currentUser }) {
                 Select Doctor
               </option>
 
+
               {department === 'Cardiology' && (
                 <>
                   <option>Dr. Priya</option>
                   <option>Dr. Arun</option>
                 </>
               )}
+
 
               {department === 'Dermatology' && (
                 <>
@@ -266,6 +384,7 @@ function PatientDashboard({ setPage, currentUser }) {
                 </>
               )}
 
+
               {department === 'General Medicine' && (
                 <>
                   <option>Dr. Rahul</option>
@@ -273,12 +392,14 @@ function PatientDashboard({ setPage, currentUser }) {
                 </>
               )}
 
+
               {department === 'Orthopedics' && (
                 <>
                   <option>Dr. Suresh</option>
                   <option>Dr. Anitha</option>
                 </>
               )}
+
 
               {department === 'Pediatrics' && (
                 <>
@@ -332,6 +453,7 @@ function PatientDashboard({ setPage, currentUser }) {
             <br />
             <br />
 
+
             <button
               className="login-submit"
               onClick={handleBookAppointment}
@@ -356,6 +478,7 @@ function PatientDashboard({ setPage, currentUser }) {
 
         <div className="dashboard-grid">
 
+
           {/* Book Appointment Card */}
 
           <div className="dashboard-card">
@@ -376,15 +499,144 @@ function PatientDashboard({ setPage, currentUser }) {
           </div>
 
 
-          {/* Upcoming Appointment */}
+          {/* Upcoming Appointments */}
 
           <div className="dashboard-card">
 
-            <h2>Upcoming Appointment</h2>
+            <h2>Upcoming Appointments</h2>
 
-            {appointment ? (
+            {appointments.length > 0 ? (
 
-              <div>
+              appointments.map((appointment) => (
+
+                <div key={appointment._id}>
+
+                  <p>
+                    <strong>Doctor:</strong>{' '}
+                    {appointment.doctor}
+                  </p>
+
+                  <p>
+                    <strong>Department:</strong>{' '}
+                    {appointment.department}
+                  </p>
+
+                  <p>
+                    <strong>Date:</strong>{' '}
+                    {appointment.date}
+                  </p>
+
+                  <p>
+                    <strong>Time:</strong>{' '}
+                    {appointment.time}
+                  </p>
+
+                  <p>
+                    <strong>Status:</strong>{' '}
+                    {appointment.status}
+                  </p>
+
+                  <p>
+                    <strong>Token:</strong>{' '}
+                    {appointment.token || '—'}
+                  </p>
+
+                  {appointment.token && (
+                    <button
+                      onClick={() => handleViewQueue(appointment)}
+                    >
+                      View Queue
+                    </button>
+                  )}
+
+                  <hr />
+
+                </div>
+
+              ))
+
+            ) : (
+
+              <p>
+                No upcoming appointments.
+              </p>
+
+            )}
+
+
+            <button
+              onClick={() => setShowBooking(true)}
+            >
+              Book Appointment
+            </button>
+
+          </div>
+
+        </div>
+
+
+        {/* Live Queue */}
+
+        <div className="queue-section">
+
+          <h2>Live Queue Status</h2>
+
+          {queue ? (
+
+            <>
+
+              <p>
+                Your current queue status
+              </p>
+
+              <div className="queue-info">
+
+                <div>
+                  <h3>Your Token</h3>
+                  <span>{queue.yourToken}</span>
+                </div>
+
+                <div>
+                  <h3>Now Serving</h3>
+                  <span>{queue.nowServing}</span>
+                </div>
+
+                <div>
+                  <h3>Patients Ahead</h3>
+                  <span>{queue.patientsAhead}</span>
+                </div>
+
+                <div>
+                  <h3>Estimated Wait</h3>
+                  <span>{queue.estimatedWait} min</span>
+                </div>
+
+              </div>
+
+            </>
+
+          ) : (
+
+            <p>
+              Select "View Queue" for an appointment to see its queue status.
+            </p>
+
+          )}
+
+        </div>
+
+
+        {/* My Appointments */}
+
+        <div className="dashboard-section">
+
+          <h2>My Appointments</h2>
+
+          {appointments.length > 0 ? (
+
+            appointments.map((appointment) => (
+
+              <div key={appointment._id}>
 
                 <p>
                   <strong>Doctor:</strong>{' '}
@@ -411,100 +663,24 @@ function PatientDashboard({ setPage, currentUser }) {
                   {appointment.status}
                 </p>
 
+                <p>
+                  <strong>Token:</strong>{' '}
+                  {appointment.token || '—'}
+                </p>
+
+                {appointment.token && (
+                  <button
+                    onClick={() => handleViewQueue(appointment)}
+                  >
+                    View Queue
+                  </button>
+                )}
+
+                <hr />
+
               </div>
 
-            ) : (
-
-              <p>
-                No upcoming appointments.
-              </p>
-
-            )}
-
-            <button
-              onClick={() => setShowBooking(true)}
-            >
-              Book Appointment
-            </button>
-
-          </div>
-
-        </div>
-
-
-        {/* Live Queue */}
-
-        <div className="queue-section">
-
-          <h2>Live Queue Status</h2>
-
-          <p>
-            No active queue.
-          </p>
-
-          <div className="queue-info">
-
-            <div>
-              <h3>Your Token</h3>
-              <span>—</span>
-            </div>
-
-            <div>
-              <h3>Now Serving</h3>
-              <span>—</span>
-            </div>
-
-            <div>
-              <h3>Patients Ahead</h3>
-              <span>—</span>
-            </div>
-
-            <div>
-              <h3>Estimated Wait</h3>
-              <span>—</span>
-            </div>
-
-          </div>
-
-        </div>
-
-
-        {/* My Appointments */}
-
-        <div className="dashboard-section">
-
-          <h2>My Appointments</h2>
-
-          {appointment ? (
-
-            <div>
-
-              <p>
-                <strong>Doctor:</strong>{' '}
-                {appointment.doctor}
-              </p>
-
-              <p>
-                <strong>Department:</strong>{' '}
-                {appointment.department}
-              </p>
-
-              <p>
-                <strong>Date:</strong>{' '}
-                {appointment.date}
-              </p>
-
-              <p>
-                <strong>Time:</strong>{' '}
-                {appointment.time}
-              </p>
-
-              <p>
-                <strong>Status:</strong>{' '}
-                {appointment.status}
-              </p>
-
-            </div>
+            ))
 
           ) : (
 
@@ -520,6 +696,7 @@ function PatientDashboard({ setPage, currentUser }) {
         {/* History + Notifications */}
 
         <div className="dashboard-grid">
+
 
           <div className="dashboard-card">
 

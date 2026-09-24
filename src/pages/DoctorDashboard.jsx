@@ -1,32 +1,69 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function DoctorDashboard({ setPage, currentUser }) {
 
   const [available, setAvailable] = useState(true)
 
-  const [queue, setQueue] = useState([
-    {
-      token: 101,
-      patient: 'Rahul Kumar',
-      status: 'Waiting'
-    },
-    {
-      token: 102,
-      patient: 'Anitha S',
-      status: 'Waiting'
-    },
-    {
-      token: 103,
-      patient: 'Karthik R',
-      status: 'Waiting'
-    }
-  ])
+  const [appointments, setAppointments] = useState([])
+
+  const [queue, setQueue] = useState([])
 
   const [currentPatient, setCurrentPatient] = useState(null)
 
   const [showHistory, setShowHistory] = useState(false)
 
+
+  // Get doctor's appointments from MongoDB
+
+  useEffect(() => {
+
+    async function getAppointments() {
+
+      try {
+
+        const response = await fetch(
+          `http://localhost:5000/api/appointments/doctor/${encodeURIComponent(currentUser.name)}`
+        )
+
+        const data = await response.json()
+
+        if (response.ok) {
+
+          setAppointments(data)
+
+          const waitingPatients = data
+            .filter(
+              (appointment) =>
+                appointment.status === 'Upcoming'
+            )
+            .map((appointment) => ({
+              token: appointment.token,
+              patient: appointment.patientName,
+              appointmentId: appointment._id,
+              status: 'Waiting'
+            }))
+
+          setQueue(waitingPatients)
+
+        }
+
+      } catch (error) {
+
+        console.log('Failed to fetch doctor appointments')
+
+      }
+
+    }
+
+    if (currentUser) {
+      getAppointments()
+    }
+
+  }, [currentUser])
+
+
   if (!currentUser) {
+
     return (
       <div className="login-page">
 
@@ -57,42 +94,117 @@ function DoctorDashboard({ setPage, currentUser }) {
   }
 
 
-  function callNextPatient() {
+  async function callNextPatient() {
 
-    if (queue.length === 0) {
-      alert('No patients waiting')
-      return
-    }
+  if (queue.length === 0) {
 
-    const nextPatient = queue[0]
+    alert('No patients waiting')
 
-    setCurrentPatient(nextPatient)
+    return
 
-    const remainingPatients = queue.slice(1)
-
-    setQueue(remainingPatients)
   }
 
+  const nextPatient = queue[0]
 
-  function completeConsultation() {
+  try {
 
-    if (!currentPatient) {
-      alert('No patient is currently being consulted')
-      return
-    }
-
-    alert(
-      currentPatient.patient +
-      "'s consultation completed."
+    const response = await fetch(
+      `http://localhost:5000/api/appointments/call/${nextPatient.appointmentId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     )
 
-    setCurrentPatient(null)
+    const data = await response.json()
+
+    if (response.ok) {
+
+      setCurrentPatient({
+        ...nextPatient,
+        status: 'Consulting'
+      })
+
+      setQueue(queue.slice(1))
+
+      alert('Patient called successfully')
+
+    } else {
+
+      alert(data.message)
+
+    }
+
+  } catch (error) {
+
+    alert('Cannot connect to server')
+
   }
 
+}
+
+
+  async function completeConsultation() {
+
+  if (!currentPatient) {
+
+    alert('No patient is currently being consulted')
+
+    return
+
+  }
+
+  try {
+
+    const response = await fetch(
+      `http://localhost:5000/api/appointments/complete/${currentPatient.appointmentId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    const data = await response.json()
+
+    if (response.ok) {
+
+      alert(
+        currentPatient.patient +
+        "'s consultation completed."
+      )
+
+      setCurrentPatient(null)
+
+      // Remove completed appointment from the appointment list
+      setAppointments(
+        appointments.filter(
+          (appointment) =>
+            appointment._id !== currentPatient.appointmentId
+        )
+      )
+
+    } else {
+
+      alert(data.message)
+
+    }
+
+  } catch (error) {
+
+    alert('Cannot connect to server')
+
+  }
+
+}
 
   function toggleAvailability() {
 
     setAvailable(!available)
+
   }
 
 
@@ -109,7 +221,7 @@ function DoctorDashboard({ setPage, currentUser }) {
         <div>
 
           <span>
-            Dr. {currentUser.name}
+            {currentUser.name}
           </span>
 
           <button onClick={handleLogout}>
@@ -144,7 +256,7 @@ function DoctorDashboard({ setPage, currentUser }) {
 
               <p>
                 <strong>Doctor Name:</strong>{' '}
-                Dr. {currentUser.name}
+                {currentUser.name}
               </p>
 
               <p>
@@ -158,7 +270,7 @@ function DoctorDashboard({ setPage, currentUser }) {
 
               <p>
                 <strong>Specialization:</strong>{' '}
-                General Medicine
+                {currentUser.specialization}
               </p>
 
               <p>
@@ -234,83 +346,50 @@ function DoctorDashboard({ setPage, currentUser }) {
 
           <h2>Today's Appointments</h2>
 
-          <div className="appointment-list">
+          {appointments.length === 0 ? (
 
-            <div className="appointment-item">
+            <p>
+              No appointments found.
+            </p>
 
-              <div>
+          ) : (
 
-                <strong>
-                  Rahul Kumar
-                </strong>
+            <div className="appointment-list">
 
-                <p>
-                  09:30 AM
-                </p>
+              {appointments.map((appointment) => (
 
-              </div>
+                <div
+                  className="appointment-item"
+                  key={appointment._id}
+                >
 
-              <span>
-                Upcoming
-              </span>
+                  <div>
 
-              <button>
-                View
-              </button>
+                    <strong>
+                      {appointment.patientName}
+                    </strong>
 
-            </div>
+                    <p>
+                      {appointment.time}
+                    </p>
 
+                  </div>
 
-            <div className="appointment-item">
+                  <span>
+                    {appointment.status}
+                  </span>
 
-              <div>
+                  <button>
+                    View
+                  </button>
 
-                <strong>
-                  Anitha S
-                </strong>
+                </div>
 
-                <p>
-                  10:00 AM
-                </p>
-
-              </div>
-
-              <span>
-                Upcoming
-              </span>
-
-              <button>
-                View
-              </button>
+              ))}
 
             </div>
 
-
-            <div className="appointment-item">
-
-              <div>
-
-                <strong>
-                  Karthik R
-                </strong>
-
-                <p>
-                  11:00 AM
-                </p>
-
-              </div>
-
-              <span>
-                Upcoming
-              </span>
-
-              <button>
-                View
-              </button>
-
-            </div>
-
-          </div>
+          )}
 
         </div>
 
@@ -380,7 +459,9 @@ function DoctorDashboard({ setPage, currentUser }) {
               <span>
                 {currentPatient
                   ? 'Consulting'
-                  : 'Available'}
+                  : available
+                    ? 'Available'
+                    : 'Unavailable'}
               </span>
 
             </div>
@@ -413,6 +494,7 @@ function DoctorDashboard({ setPage, currentUser }) {
             Waiting Patients
           </h3>
 
+
           {queue.length === 0 ? (
 
             <p>
@@ -423,7 +505,7 @@ function DoctorDashboard({ setPage, currentUser }) {
 
             queue.map((patient) => (
 
-              <p key={patient.token}>
+              <p key={patient.appointmentId}>
 
                 Token {patient.token} -{' '}
                 {patient.patient}
@@ -465,9 +547,11 @@ function DoctorDashboard({ setPage, currentUser }) {
             className="login-submit"
             onClick={toggleAvailability}
           >
+
             {available
               ? 'Set Unavailable'
               : 'Set Available'}
+
           </button>
 
         </div>
@@ -481,49 +565,9 @@ function DoctorDashboard({ setPage, currentUser }) {
 
             <h2>Patient History</h2>
 
-            <div>
-
-              <h3>
-                Rahul Kumar
-              </h3>
-
-              <p>
-                Previous Visit: 10/09/2026
-              </p>
-
-              <p>
-                Diagnosis: Common Cold
-              </p>
-
-              <p>
-                Notes: Patient advised rest and medication.
-              </p>
-
-            </div>
-
-
-            <hr />
-
-
-            <div>
-
-              <h3>
-                Anitha S
-              </h3>
-
-              <p>
-                Previous Visit: 05/09/2026
-              </p>
-
-              <p>
-                Diagnosis: Migraine
-              </p>
-
-              <p>
-                Notes: Follow-up recommended.
-              </p>
-
-            </div>
+            <p>
+              Patient history will be connected to MongoDB later.
+            </p>
 
           </div>
 
@@ -539,7 +583,7 @@ function DoctorDashboard({ setPage, currentUser }) {
             <h2>Notifications</h2>
 
             <p>
-              3 patients have appointments today.
+              {appointments.length} patients have appointments.
             </p>
 
             <p>
@@ -564,24 +608,38 @@ function DoctorDashboard({ setPage, currentUser }) {
             <h2>Today's Summary</h2>
 
             <p>
+
               <strong>
                 Total Appointments:
               </strong>{' '}
-              3
+
+              {appointments.length}
+
             </p>
 
+
             <p>
+
               <strong>
                 Patients Completed:
               </strong>{' '}
-              0
+
+              {appointments.filter(
+                (appointment) =>
+                  appointment.status === 'Completed'
+              ).length}
+
             </p>
 
+
             <p>
+
               <strong>
                 Patients Waiting:
               </strong>{' '}
+
               {queue.length}
+
             </p>
 
           </div>

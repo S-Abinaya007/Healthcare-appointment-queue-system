@@ -1,6 +1,6 @@
 function Login({ setPage, setCurrentUser }) {
 
-  function handleLogin() {
+  async function handleLogin() {
 
     const email = document.getElementById('login-email').value
     const password = document.getElementById('login-password').value
@@ -16,25 +16,42 @@ function Login({ setPage, setCurrentUser }) {
 
     if (role === 'Patient') {
 
-      const patientData = localStorage.getItem(
-        'patient_' + email
-      )
+      try {
 
-      if (!patientData) {
-        alert('Account not found. Please register first.')
-        return
+        const response = await fetch('http://localhost:5000/api/patients/login', {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json'
+          },
+
+          body: JSON.stringify({
+            email: email,
+            password: password
+          })
+        })
+
+        const data = await response.json()
+
+        if (response.ok) {
+
+          alert('Login successful!')
+
+          setCurrentUser(data.patient)
+
+          setPage('patient')
+
+        } else {
+
+          alert(data.message)
+
+        }
+
+      } catch (error) {
+
+        alert('Cannot connect to the server')
+
       }
-
-      const patient = JSON.parse(patientData)
-
-      if (patient.password !== password) {
-        alert('Incorrect password')
-        return
-      }
-
-      setCurrentUser(patient)
-
-      setPage('patient')
 
       return
     }
@@ -44,25 +61,59 @@ function Login({ setPage, setCurrentUser }) {
 
     if (role === 'Doctor') {
 
-      const doctor = {
-        name: 'Priya',
-        email: email,
-        specialization: 'General Medicine'
-      }
+  try {
 
-      setCurrentUser(doctor)
+    const response = await fetch(
+      'http://localhost:5000/api/doctors/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email
+        })
+      }
+    )
+
+    const data = await response.json()
+
+    if (response.ok) {
+
+      alert('Doctor login successful!')
+
+      setCurrentUser(data.doctor)
 
       setPage('doctor')
 
-      return
+    } else {
+
+      alert(data.message)
+
     }
+
+  } catch (error) {
+
+    alert('Cannot connect to the server')
+
+  }
+
+  return
+}
 
 
     // Admin Login
 
     if (role === 'Admin') {
 
-      alert('Admin dashboard will be added next.')
+      const admin = {
+        name: 'Admin',
+        email: email
+      }
+
+      setCurrentUser(admin)
+
+      setPage('admin')
 
       return
     }

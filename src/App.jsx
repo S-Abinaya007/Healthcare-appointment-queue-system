@@ -4,6 +4,7 @@ import Register from './pages/Register'
 import PatientDashboard from './pages/PatientDashboard'
 import './App.css'
 import DoctorDashboard from './pages/DoctorDashboard'
+import AdminDashboard from './pages/AdminDashboard'
 
 function App() {
 
@@ -36,6 +37,14 @@ function App() {
   if (page === 'doctor') {
   return (
     <DoctorDashboard
+      setPage={setPage}
+      currentUser={currentUser}
+    />
+  )
+}
+if (page === 'admin') {
+  return (
+    <AdminDashboard
       setPage={setPage}
       currentUser={currentUser}
     />

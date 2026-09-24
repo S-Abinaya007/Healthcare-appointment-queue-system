@@ -8,30 +8,53 @@ function Register({ setPage }) {
   const [age, setAge] = useState('')
   const [gender, setGender] = useState('')
 
-  function handleRegister() {
+  async function handleRegister() {
 
-    if (!name || !email || !password || !age || !gender) {
-      alert('Please fill all the fields')
-      return
-    }
-
-    const patient = {
-      name: name,
-      email: email,
-      password: password,
-      age: age,
-      gender: gender
-    }
-
-    localStorage.setItem(
-      'patient_' + email,
-      JSON.stringify(patient)
-    )
-
-    alert('Registration successful!')
-
-    setPage('login')
+  if (!name || !email || !password || !age || !gender) {
+    alert('Please fill all the fields')
+    return
   }
+
+  const patient = {
+    name: name,
+    email: email,
+    password: password,
+    age: age,
+    gender: gender
+  }
+
+  try {
+
+    const response = await fetch('http://localhost:5000/api/patients/register', {
+      method: 'POST',
+
+      headers: {
+        'Content-Type': 'application/json'
+      },
+
+      body: JSON.stringify(patient)
+    })
+
+    const data = await response.json()
+
+    if (response.ok) {
+
+      alert('Registration successful!')
+
+      setPage('login')
+
+    } else {
+
+      alert(data.message)
+
+    }
+
+  } catch (error) {
+
+    alert('Cannot connect to the server')
+
+  }
+}
 
   return (
     <div className="login-page">
