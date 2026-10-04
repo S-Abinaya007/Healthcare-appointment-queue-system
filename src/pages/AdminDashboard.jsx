@@ -1,48 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function AdminDashboard({ setPage, currentUser }) {
 
-  const [patients, setPatients] = useState([
-    {
-      id: 'PAT-001',
-      name: 'Rahul Kumar',
-      email: 'rahul@gmail.com',
-      age: 25
-    },
-    {
-      id: 'PAT-002',
-      name: 'Anitha S',
-      email: 'anitha@gmail.com',
-      age: 30
-    },
-    {
-      id: 'PAT-003',
-      name: 'Karthik R',
-      email: 'karthik@gmail.com',
-      age: 28
-    }
-  ])
+  const [patients, setPatients] = useState([])
+  const [doctors, setDoctors] = useState([])
 
-  const [doctors, setDoctors] = useState([
-    {
-      id: 'DOC-001',
-      name: 'Dr. Priya',
-      department: 'General Medicine',
-      status: 'Available'
-    },
-    {
-      id: 'DOC-002',
-      name: 'Dr. Arun',
-      department: 'Cardiology',
-      status: 'Available'
-    },
-    {
-      id: 'DOC-003',
-      name: 'Dr. Meena',
-      department: 'Dermatology',
-      status: 'Unavailable'
-    }
-  ])
+  const [doctorName, setDoctorName] = useState('')
+  const [doctorEmail, setDoctorEmail] = useState('')
+  const [doctorSpecialization, setDoctorSpecialization] = useState('')
 
   const [appointments, setAppointments] = useState([
     {
@@ -67,6 +32,28 @@ function AdminDashboard({ setPage, currentUser }) {
   const [showDoctors, setShowDoctors] = useState(false)
   const [showAppointments, setShowAppointments] = useState(false)
   const [showQueues, setShowQueues] = useState(false)
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/patients')
+      .then(response => response.json())
+      .then(data => {
+        setPatients(data)
+      })
+      .catch(error => {
+        console.log('Error fetching patients:', error)
+      })
+  }, [])
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/doctors')
+      .then(response => response.json())
+      .then(data => {
+        setDoctors(data)
+      })
+      .catch(error => {
+        console.log('Error fetching doctors:', error)
+      })
+  }, [])
 
   if (!currentUser) {
     return (
@@ -93,11 +80,9 @@ function AdminDashboard({ setPage, currentUser }) {
     )
   }
 
-
   function handleLogout() {
     setPage('login')
   }
-
 
   function togglePatients() {
     setShowPatients(!showPatients)
@@ -106,14 +91,12 @@ function AdminDashboard({ setPage, currentUser }) {
     setShowQueues(false)
   }
 
-
   function toggleDoctors() {
     setShowDoctors(!showDoctors)
     setShowPatients(false)
     setShowAppointments(false)
     setShowQueues(false)
   }
-
 
   function toggleAppointments() {
     setShowAppointments(!showAppointments)
@@ -122,7 +105,6 @@ function AdminDashboard({ setPage, currentUser }) {
     setShowQueues(false)
   }
 
-
   function toggleQueues() {
     setShowQueues(!showQueues)
     setShowPatients(false)
@@ -130,25 +112,86 @@ function AdminDashboard({ setPage, currentUser }) {
     setShowAppointments(false)
   }
 
+  async function removePatient(id) {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/patients/${id}`,
+        {
+          method: 'DELETE'
+        }
+      )
 
-  function removePatient(id) {
+      const data = await response.json()
 
-    const updatedPatients = patients.filter(
-      (patient) => patient.id !== id
-    )
+      if (!response.ok) {
+        alert(data.message)
+        return
+      }
 
-    setPatients(updatedPatients)
+      const updatedPatients = patients.filter(
+        (patient) => patient._id !== id
+      )
 
-    alert('Patient removed successfully')
+      setPatients(updatedPatients)
+
+      alert('Patient removed successfully')
+    } catch (error) {
+      console.log('Error removing patient:', error)
+      alert('Failed to remove patient')
+    }
   }
 
+  async function createDoctor(event) {
+    event.preventDefault()
+
+    if (!doctorName || !doctorEmail || !doctorSpecialization) {
+      alert('Please fill all doctor details')
+      return
+    }
+
+    try {
+      const response = await fetch(
+        'http://localhost:5000/api/doctors/create',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: doctorName,
+            email: doctorEmail,
+            specialization: doctorSpecialization,
+            status: 'Available'
+          })
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert(data.message)
+        return
+      }
+
+      setDoctors([...doctors, data.doctor])
+
+      setDoctorName('')
+      setDoctorEmail('')
+      setDoctorSpecialization('')
+
+      alert('Doctor created successfully')
+    } catch (error) {
+      console.log('Error creating doctor:', error)
+      alert('Failed to create doctor')
+    }
+  }
 
   function toggleDoctorStatus(id) {
 
     const updatedDoctors = doctors.map(
       (doctor) => {
 
-        if (doctor.id === id) {
+        if (doctor._id === id) {
 
           return {
             ...doctor,
@@ -167,7 +210,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
     setDoctors(updatedDoctors)
   }
-
 
   function cancelAppointment(id) {
 
@@ -193,12 +235,8 @@ function AdminDashboard({ setPage, currentUser }) {
     alert('Appointment cancelled')
   }
 
-
   return (
     <div className="dashboard">
-
-
-      {/* Navbar */}
 
       <nav className="dashboard-navbar">
 
@@ -218,9 +256,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
       </nav>
 
-
-      {/* Dashboard Content */}
-
       <div className="dashboard-content">
 
         <h1>Admin Dashboard</h1>
@@ -228,9 +263,6 @@ function AdminDashboard({ setPage, currentUser }) {
         <p>
           Manage patients, doctors, appointments and queues.
         </p>
-
-
-        {/* System Overview */}
 
         <div className="dashboard-section">
 
@@ -250,7 +282,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
             </div>
 
-
             <div>
 
               <h3>
@@ -263,7 +294,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
             </div>
 
-
             <div>
 
               <h3>
@@ -275,7 +305,6 @@ function AdminDashboard({ setPage, currentUser }) {
               </span>
 
             </div>
-
 
             <div>
 
@@ -292,9 +321,6 @@ function AdminDashboard({ setPage, currentUser }) {
           </div>
 
         </div>
-
-
-        {/* Quick Actions */}
 
         <div className="dashboard-section">
 
@@ -326,9 +352,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
         </div>
 
-
-        {/* Manage Patients */}
-
         {showPatients && (
 
           <div className="dashboard-section">
@@ -339,7 +362,7 @@ function AdminDashboard({ setPage, currentUser }) {
 
               <div
                 className="appointment-item"
-                key={patient.id}
+                key={patient._id || patient.id}
               >
 
                 <div>
@@ -349,7 +372,7 @@ function AdminDashboard({ setPage, currentUser }) {
                   </strong>
 
                   <p>
-                    Patient ID: {patient.id}
+                    Patient ID: {patient._id || patient.id}
                   </p>
 
                   <p>
@@ -363,7 +386,9 @@ function AdminDashboard({ setPage, currentUser }) {
                 </div>
 
                 <button
-                  onClick={() => removePatient(patient.id)}
+                  onClick={() =>
+                    removePatient(patient._id || patient.id)
+                  }
                 >
                   Remove
                 </button>
@@ -376,20 +401,62 @@ function AdminDashboard({ setPage, currentUser }) {
 
         )}
 
-
-        {/* Manage Doctors */}
-
         {showDoctors && (
 
           <div className="dashboard-section">
 
             <h2>Manage Doctors</h2>
 
+            <div className="dashboard-card">
+
+              <h2>Add New Doctor</h2>
+
+              <form onSubmit={createDoctor}>
+
+                <input
+                  type="text"
+                  placeholder="Doctor Name"
+                  value={doctorName}
+                  onChange={(event) =>
+                    setDoctorName(event.target.value)
+                  }
+                />
+
+                <input
+                  type="email"
+                  placeholder="Doctor Email"
+                  value={doctorEmail}
+                  onChange={(event) =>
+                    setDoctorEmail(event.target.value)
+                  }
+                />
+
+                <input
+                  type="text"
+                  placeholder="Specialization"
+                  value={doctorSpecialization}
+                  onChange={(event) =>
+                    setDoctorSpecialization(event.target.value)
+                  }
+                />
+
+                <button type="submit">
+                  Create Doctor
+                </button>
+
+              </form>
+
+            </div>
+
+            <br />
+
+            <h2>Doctors</h2>
+
             {doctors.map((doctor) => (
 
               <div
                 className="appointment-item"
-                key={doctor.id}
+                key={doctor._id}
               >
 
                 <div>
@@ -399,23 +466,29 @@ function AdminDashboard({ setPage, currentUser }) {
                   </strong>
 
                   <p>
-                    Doctor ID: {doctor.id}
+                    Doctor ID: {doctor._id}
                   </p>
 
                   <p>
-                    Department: {doctor.department}
+                    Email: {doctor.email}
                   </p>
 
                   <p>
-                    Status: {doctor.status}
+                    Department: {doctor.specialization}
+                  </p>
+
+                  <p>
+                    Status: {doctor.status || 'Available'}
                   </p>
 
                 </div>
 
                 <button
-                  onClick={() => toggleDoctorStatus(doctor.id)}
+                  onClick={() =>
+                    toggleDoctorStatus(doctor._id)
+                  }
                 >
-                  {doctor.status === 'Available'
+                  {(doctor.status || 'Available') === 'Available'
                     ? 'Set Unavailable'
                     : 'Set Available'}
                 </button>
@@ -427,9 +500,6 @@ function AdminDashboard({ setPage, currentUser }) {
           </div>
 
         )}
-
-
-        {/* Manage Appointments */}
 
         {showAppointments && (
 
@@ -492,9 +562,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
         )}
 
-
-        {/* Monitor Queues */}
-
         {showQueues && (
 
           <div className="queue-section">
@@ -504,7 +571,6 @@ function AdminDashboard({ setPage, currentUser }) {
             <p>
               Monitor the current queue status of doctors.
             </p>
-
 
             <div className="queue-info">
 
@@ -520,7 +586,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
               </div>
 
-
               <div>
 
                 <h3>
@@ -533,7 +598,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
               </div>
 
-
               <div>
 
                 <h3>
@@ -545,7 +609,6 @@ function AdminDashboard({ setPage, currentUser }) {
                 </span>
 
               </div>
-
 
               <div>
 
@@ -561,9 +624,7 @@ function AdminDashboard({ setPage, currentUser }) {
 
             </div>
 
-
             <br />
-
 
             <div className="queue-info">
 
@@ -579,7 +640,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
               </div>
 
-
               <div>
 
                 <h3>
@@ -592,7 +652,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
               </div>
 
-
               <div>
 
                 <h3>
@@ -604,7 +663,6 @@ function AdminDashboard({ setPage, currentUser }) {
                 </span>
 
               </div>
-
 
               <div>
 
@@ -623,9 +681,6 @@ function AdminDashboard({ setPage, currentUser }) {
           </div>
 
         )}
-
-
-        {/* Departments */}
 
         <div className="dashboard-grid">
 
@@ -659,9 +714,6 @@ function AdminDashboard({ setPage, currentUser }) {
 
           </div>
 
-
-          {/* Notifications */}
-
           <div className="dashboard-card">
 
             <h2>Notifications</h2>
@@ -685,9 +737,6 @@ function AdminDashboard({ setPage, currentUser }) {
           </div>
 
         </div>
-
-
-        {/* System Status */}
 
         <div className="dashboard-section">
 

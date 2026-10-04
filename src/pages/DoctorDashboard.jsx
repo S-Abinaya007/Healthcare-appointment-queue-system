@@ -3,17 +3,10 @@ import { useState, useEffect } from 'react'
 function DoctorDashboard({ setPage, currentUser }) {
 
   const [available, setAvailable] = useState(true)
-
   const [appointments, setAppointments] = useState([])
-
   const [queue, setQueue] = useState([])
-
   const [currentPatient, setCurrentPatient] = useState(null)
-
   const [showHistory, setShowHistory] = useState(false)
-
-
-  // Get doctor's appointments from MongoDB
 
   useEffect(() => {
 
@@ -45,11 +38,21 @@ function DoctorDashboard({ setPage, currentUser }) {
 
           setQueue(waitingPatients)
 
+        } else {
+
+          console.log(
+            'Failed to fetch appointments:',
+            data.message
+          )
+
         }
 
       } catch (error) {
 
-        console.log('Failed to fetch doctor appointments')
+        console.log(
+          'Failed to fetch doctor appointments:',
+          error
+        )
 
       }
 
@@ -96,110 +99,131 @@ function DoctorDashboard({ setPage, currentUser }) {
 
   async function callNextPatient() {
 
-  if (queue.length === 0) {
+    if (queue.length === 0) {
 
-    alert('No patients waiting')
+      alert('No patients waiting')
 
-    return
-
-  }
-
-  const nextPatient = queue[0]
-
-  try {
-
-    const response = await fetch(
-      `http://localhost:5000/api/appointments/call/${nextPatient.appointmentId}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-
-    const data = await response.json()
-
-    if (response.ok) {
-
-      setCurrentPatient({
-        ...nextPatient,
-        status: 'Consulting'
-      })
-
-      setQueue(queue.slice(1))
-
-      alert('Patient called successfully')
-
-    } else {
-
-      alert(data.message)
+      return
 
     }
 
-  } catch (error) {
+    const nextPatient = queue[0]
 
-    alert('Cannot connect to server')
+    try {
+
+      const response = await fetch(
+        `http://localhost:5000/api/appointments/call/${nextPatient.appointmentId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.ok) {
+
+        setCurrentPatient({
+          ...nextPatient,
+          status: 'Consulting'
+        })
+
+        setQueue(queue.slice(1))
+
+        setAppointments(
+          appointments.map((appointment) =>
+            appointment._id === nextPatient.appointmentId
+              ? {
+                  ...appointment,
+                  status: 'Consulting'
+                }
+              : appointment
+          )
+        )
+
+        alert('Patient called successfully')
+
+      } else {
+
+        alert(data.message)
+
+      }
+
+    } catch (error) {
+
+      console.log(error)
+
+      alert('Cannot connect to server')
+
+    }
 
   }
-
-}
 
 
   async function completeConsultation() {
 
-  if (!currentPatient) {
-
-    alert('No patient is currently being consulted')
-
-    return
-
-  }
-
-  try {
-
-    const response = await fetch(
-      `http://localhost:5000/api/appointments/complete/${currentPatient.appointmentId}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-
-    const data = await response.json()
-
-    if (response.ok) {
+    if (!currentPatient) {
 
       alert(
-        currentPatient.patient +
-        "'s consultation completed."
+        'No patient is currently being consulted'
       )
 
-      setCurrentPatient(null)
-
-      // Remove completed appointment from the appointment list
-      setAppointments(
-        appointments.filter(
-          (appointment) =>
-            appointment._id !== currentPatient.appointmentId
-        )
-      )
-
-    } else {
-
-      alert(data.message)
+      return
 
     }
 
-  } catch (error) {
+    try {
 
-    alert('Cannot connect to server')
+      const response = await fetch(
+        `http://localhost:5000/api/appointments/complete/${currentPatient.appointmentId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.ok) {
+
+        alert(
+          currentPatient.patient +
+          "'s consultation completed."
+        )
+
+        setCurrentPatient(null)
+
+        setAppointments(
+          appointments.map((appointment) =>
+            appointment._id === currentPatient.appointmentId
+              ? {
+                  ...appointment,
+                  status: 'Completed'
+                }
+              : appointment
+          )
+        )
+
+      } else {
+
+        alert(data.message)
+
+      }
+
+    } catch (error) {
+
+      console.log(error)
+
+      alert('Cannot connect to server')
+
+    }
 
   }
 
-}
 
   function toggleAvailability() {
 
@@ -208,11 +232,36 @@ function DoctorDashboard({ setPage, currentUser }) {
   }
 
 
+  function scrollToSection(id) {
+
+    const element = document.getElementById(id)
+
+    if (element) {
+
+      element.scrollIntoView({
+        behavior: 'smooth'
+      })
+
+    }
+
+  }
+
+
+  function openPatientHistory() {
+
+    setShowHistory(true)
+
+    setTimeout(() => {
+
+      scrollToSection('patient-history')
+
+    }, 100)
+
+  }
+
+
   return (
     <div className="dashboard">
-
-
-      {/* Navbar */}
 
       <nav className="dashboard-navbar">
 
@@ -233,8 +282,6 @@ function DoctorDashboard({ setPage, currentUser }) {
       </nav>
 
 
-      {/* Dashboard Content */}
-
       <div className="dashboard-content">
 
         <h1>Doctor Dashboard</h1>
@@ -243,8 +290,6 @@ function DoctorDashboard({ setPage, currentUser }) {
           Manage your appointments, patients and live queue.
         </p>
 
-
-        {/* Doctor Profile */}
 
         <div className="dashboard-section">
 
@@ -303,27 +348,36 @@ function DoctorDashboard({ setPage, currentUser }) {
         </div>
 
 
-        {/* Quick Actions */}
-
         <div className="dashboard-section">
 
           <h2>Quick Actions</h2>
 
           <div className="quick-actions">
 
-            <button>
+            <button
+              onClick={() =>
+                scrollToSection('today-appointments')
+              }
+            >
               Today's Appointments
             </button>
 
-            <button>
+
+            <button
+              onClick={() =>
+                scrollToSection('live-queue')
+              }
+            >
               Manage Queue
             </button>
 
+
             <button
-              onClick={() => setShowHistory(!showHistory)}
+              onClick={openPatientHistory}
             >
               Patient History
             </button>
+
 
             <button
               onClick={toggleAvailability}
@@ -331,7 +385,12 @@ function DoctorDashboard({ setPage, currentUser }) {
               Update Availability
             </button>
 
-            <button>
+
+            <button
+              onClick={() =>
+                scrollToSection('notifications')
+              }
+            >
               Notifications
             </button>
 
@@ -340,9 +399,10 @@ function DoctorDashboard({ setPage, currentUser }) {
         </div>
 
 
-        {/* Today's Appointments */}
-
-        <div className="dashboard-section">
+        <div
+          className="dashboard-section"
+          id="today-appointments"
+        >
 
           <h2>Today's Appointments</h2>
 
@@ -373,6 +433,20 @@ function DoctorDashboard({ setPage, currentUser }) {
                       {appointment.time}
                     </p>
 
+                    <p>
+                      {appointment.date}
+                    </p>
+
+                    <p>
+                      {appointment.department}
+                    </p>
+
+                    {appointment.reason && (
+                      <p>
+                        Reason: {appointment.reason}
+                      </p>
+                    )}
+
                   </div>
 
                   <span>
@@ -394,9 +468,10 @@ function DoctorDashboard({ setPage, currentUser }) {
         </div>
 
 
-        {/* Live Queue */}
-
-        <div className="queue-section">
+        <div
+          className="queue-section"
+          id="live-queue"
+        >
 
           <h2>Live Patient Queue</h2>
 
@@ -488,8 +563,6 @@ function DoctorDashboard({ setPage, currentUser }) {
           </button>
 
 
-          {/* Waiting Patients */}
-
           <h3>
             Waiting Patients
           </h3>
@@ -507,7 +580,7 @@ function DoctorDashboard({ setPage, currentUser }) {
 
               <p key={patient.appointmentId}>
 
-                Token {patient.token} -{' '}
+                Token {patient.token || '—'} -{' '}
                 {patient.patient}
 
               </p>
@@ -518,8 +591,6 @@ function DoctorDashboard({ setPage, currentUser }) {
 
         </div>
 
-
-        {/* Availability */}
 
         <div className="dashboard-section">
 
@@ -557,26 +628,83 @@ function DoctorDashboard({ setPage, currentUser }) {
         </div>
 
 
-        {/* Patient History */}
-
         {showHistory && (
 
-          <div className="dashboard-section">
+          <div
+            className="dashboard-section"
+            id="patient-history"
+          >
 
             <h2>Patient History</h2>
 
-            <p>
-              Patient history will be connected to MongoDB later.
-            </p>
+            {appointments.length === 0 ? (
+
+              <p>
+                No patient history available.
+              </p>
+
+            ) : (
+
+              <div className="appointment-list">
+
+                {appointments.map((appointment) => (
+
+                  <div
+                    className="appointment-item"
+                    key={`history-${appointment._id}`}
+                  >
+
+                    <div>
+
+                      <strong>
+                        {appointment.patientName}
+                      </strong>
+
+                      <p>
+                        Date: {appointment.date}
+                      </p>
+
+                      <p>
+                        Time: {appointment.time}
+                      </p>
+
+                      <p>
+                        Department: {appointment.department}
+                      </p>
+
+                      <p>
+                        Doctor: {appointment.doctor}
+                      </p>
+
+                      {appointment.reason && (
+                        <p>
+                          Reason: {appointment.reason}
+                        </p>
+                      )}
+
+                    </div>
+
+                    <span>
+                      {appointment.status}
+                    </span>
+
+                  </div>
+
+                ))}
+
+              </div>
+
+            )}
 
           </div>
 
         )}
 
 
-        {/* Notifications */}
-
-        <div className="dashboard-grid">
+        <div
+          className="dashboard-grid"
+          id="notifications"
+        >
 
           <div className="dashboard-card">
 
@@ -600,8 +728,6 @@ function DoctorDashboard({ setPage, currentUser }) {
 
           </div>
 
-
-          {/* Consultation Summary */}
 
           <div className="dashboard-card">
 
