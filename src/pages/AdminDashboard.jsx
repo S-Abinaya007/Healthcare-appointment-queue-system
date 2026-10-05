@@ -1,32 +1,14 @@
 import { useState, useEffect } from 'react'
 
 function AdminDashboard({ setPage, currentUser }) {
-
   const [patients, setPatients] = useState([])
   const [doctors, setDoctors] = useState([])
+  const [appointments, setAppointments] = useState([])
+  const [queueData, setQueueData] = useState({})
 
   const [doctorName, setDoctorName] = useState('')
   const [doctorEmail, setDoctorEmail] = useState('')
   const [doctorSpecialization, setDoctorSpecialization] = useState('')
-
-  const [appointments, setAppointments] = useState([
-    {
-      id: 'APT-001',
-      patient: 'Rahul Kumar',
-      doctor: 'Dr. Priya',
-      date: '18/09/2026',
-      time: '09:30 AM',
-      status: 'Confirmed'
-    },
-    {
-      id: 'APT-002',
-      patient: 'Anitha S',
-      doctor: 'Dr. Arun',
-      date: '18/09/2026',
-      time: '10:00 AM',
-      status: 'Confirmed'
-    }
-  ])
 
   const [showPatients, setShowPatients] = useState(false)
   const [showDoctors, setShowDoctors] = useState(false)
@@ -34,33 +16,73 @@ function AdminDashboard({ setPage, currentUser }) {
   const [showQueues, setShowQueues] = useState(false)
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/patients')
-      .then(response => response.json())
-      .then(data => {
-        setPatients(data)
-      })
-      .catch(error => {
-        console.log('Error fetching patients:', error)
-      })
-  }, [])
+    async function getData() {
+      try {
+        const patientResponse = await fetch(
+          'http://localhost:5000/api/patients'
+        )
 
-  useEffect(() => {
-    fetch('http://localhost:5000/api/doctors')
-      .then(response => response.json())
-      .then(data => {
-        setDoctors(data)
-      })
-      .catch(error => {
-        console.log('Error fetching doctors:', error)
-      })
+        const patientData = await patientResponse.json()
+
+        if (patientResponse.ok) {
+          setPatients(patientData)
+        }
+
+        const doctorResponse = await fetch(
+          'http://localhost:5000/api/doctors'
+        )
+
+        const doctorData = await doctorResponse.json()
+
+        if (doctorResponse.ok) {
+          setDoctors(doctorData)
+        }
+
+        const appointmentResponse = await fetch(
+          'http://localhost:5000/api/appointments'
+        )
+
+        const appointmentData = await appointmentResponse.json()
+
+        if (appointmentResponse.ok) {
+          setAppointments(appointmentData)
+
+          const updatedQueueData = {}
+
+          for (const appointment of appointmentData) {
+            try {
+              const queueResponse = await fetch(
+                `http://localhost:5000/api/appointments/queue/${appointment._id}`
+              )
+
+              const queue = await queueResponse.json()
+
+              if (queueResponse.ok) {
+                updatedQueueData[appointment._id] = queue
+              }
+            } catch (error) {
+              console.log('Error fetching queue:', error)
+            }
+          }
+
+          setQueueData(updatedQueueData)
+        }
+      } catch (error) {
+        console.log('Error fetching admin data:', error)
+      }
+    }
+
+    getData()
+
+    const interval = setInterval(getData, 5000)
+
+    return () => clearInterval(interval)
   }, [])
 
   if (!currentUser) {
     return (
       <div className="login-page">
-
         <div className="login-box">
-
           <h1>No Admin Logged In</h1>
 
           <p>
@@ -73,9 +95,7 @@ function AdminDashboard({ setPage, currentUser }) {
           >
             Go to Login
           </button>
-
         </div>
-
       </div>
     )
   }
@@ -129,7 +149,7 @@ function AdminDashboard({ setPage, currentUser }) {
       }
 
       const updatedPatients = patients.filter(
-        (patient) => patient._id !== id
+        patient => patient._id !== id
       )
 
       setPatients(updatedPatients)
@@ -187,53 +207,35 @@ function AdminDashboard({ setPage, currentUser }) {
   }
 
   function toggleDoctorStatus(id) {
-
-    const updatedDoctors = doctors.map(
-      (doctor) => {
-
-        if (doctor._id === id) {
-
-          return {
-            ...doctor,
-            status:
-              doctor.status === 'Available'
-                ? 'Unavailable'
-                : 'Available'
-          }
-
+    const updatedDoctors = doctors.map(doctor => {
+      if (doctor._id === id) {
+        return {
+          ...doctor,
+          status:
+            doctor.status === 'Available'
+              ? 'Unavailable'
+              : 'Available'
         }
-
-        return doctor
-
       }
-    )
+
+      return doctor
+    })
 
     setDoctors(updatedDoctors)
   }
 
-  function cancelAppointment(id) {
+  const activeAppointments = appointments.filter(
+    appointment =>
+      appointment.status === 'Upcoming' ||
+      appointment.status === 'Consulting'
+  )
 
-    const updatedAppointments = appointments.map(
-      (appointment) => {
-
-        if (appointment.id === id) {
-
-          return {
-            ...appointment,
-            status: 'Cancelled'
-          }
-
-        }
-
-        return appointment
-
-      }
+  const activeQueues = new Set(
+    activeAppointments.map(
+      appointment =>
+        `${appointment.doctorName}-${appointment.date}`
     )
-
-    setAppointments(updatedAppointments)
-
-    alert('Appointment cancelled')
-  }
+  )
 
   return (
     <div className="dashboard">
@@ -243,15 +245,11 @@ function AdminDashboard({ setPage, currentUser }) {
         <h2>HealthCare</h2>
 
         <div>
-
-          <span>
-            Admin
-          </span>
+          <span>Admin</span>
 
           <button onClick={handleLogout}>
             Logout
           </button>
-
         </div>
 
       </nav>
@@ -271,51 +269,23 @@ function AdminDashboard({ setPage, currentUser }) {
           <div className="queue-info">
 
             <div>
-
-              <h3>
-                Total Patients
-              </h3>
-
-              <span>
-                {patients.length}
-              </span>
-
+              <h3>Total Patients</h3>
+              <span>{patients.length}</span>
             </div>
 
             <div>
-
-              <h3>
-                Total Doctors
-              </h3>
-
-              <span>
-                {doctors.length}
-              </span>
-
+              <h3>Total Doctors</h3>
+              <span>{doctors.length}</span>
             </div>
 
             <div>
-
-              <h3>
-                Appointments
-              </h3>
-
-              <span>
-                {appointments.length}
-              </span>
-
+              <h3>Appointments</h3>
+              <span>{appointments.length}</span>
             </div>
 
             <div>
-
-              <h3>
-                Active Queues
-              </h3>
-
-              <span>
-                2
-              </span>
-
+              <h3>Active Queues</h3>
+              <span>{activeQueues.size}</span>
             </div>
 
           </div>
@@ -353,56 +323,59 @@ function AdminDashboard({ setPage, currentUser }) {
         </div>
 
         {showPatients && (
-
           <div className="dashboard-section">
 
             <h2>Manage Patients</h2>
 
-            {patients.map((patient) => (
+            {patients.length === 0 ? (
+              <p>No patients registered.</p>
+            ) : (
+              patients.map(patient => (
+                <div
+                  className="appointment-item"
+                  key={patient._id}
+                >
 
-              <div
-                className="appointment-item"
-                key={patient._id || patient.id}
-              >
+                  <div>
 
-                <div>
+                    <strong>
+                      {patient.name}
+                    </strong>
 
-                  <strong>
-                    {patient.name}
-                  </strong>
+                    <p>
+                      Patient ID: {patient._id}
+                    </p>
 
-                  <p>
-                    Patient ID: {patient._id || patient.id}
-                  </p>
+                    <p>
+                      Email: {patient.email}
+                    </p>
 
-                  <p>
-                    Email: {patient.email}
-                  </p>
+                    <p>
+                      Age: {patient.age}
+                    </p>
 
-                  <p>
-                    Age: {patient.age}
-                  </p>
+                    <p>
+                      Gender: {patient.gender}
+                    </p>
+
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      removePatient(patient._id)
+                    }
+                  >
+                    Remove
+                  </button>
 
                 </div>
-
-                <button
-                  onClick={() =>
-                    removePatient(patient._id || patient.id)
-                  }
-                >
-                  Remove
-                </button>
-
-              </div>
-
-            ))}
+              ))
+            )}
 
           </div>
-
         )}
 
         {showDoctors && (
-
           <div className="dashboard-section">
 
             <h2>Manage Doctors</h2>
@@ -417,7 +390,7 @@ function AdminDashboard({ setPage, currentUser }) {
                   type="text"
                   placeholder="Doctor Name"
                   value={doctorName}
-                  onChange={(event) =>
+                  onChange={event =>
                     setDoctorName(event.target.value)
                   }
                 />
@@ -426,7 +399,7 @@ function AdminDashboard({ setPage, currentUser }) {
                   type="email"
                   placeholder="Doctor Email"
                   value={doctorEmail}
-                  onChange={(event) =>
+                  onChange={event =>
                     setDoctorEmail(event.target.value)
                   }
                 />
@@ -435,7 +408,7 @@ function AdminDashboard({ setPage, currentUser }) {
                   type="text"
                   placeholder="Specialization"
                   value={doctorSpecialization}
-                  onChange={(event) =>
+                  onChange={event =>
                     setDoctorSpecialization(event.target.value)
                   }
                 />
@@ -452,118 +425,118 @@ function AdminDashboard({ setPage, currentUser }) {
 
             <h2>Doctors</h2>
 
-            {doctors.map((doctor) => (
+            {doctors.length === 0 ? (
+              <p>No doctors registered.</p>
+            ) : (
+              doctors.map(doctor => (
+                <div
+                  className="appointment-item"
+                  key={doctor._id}
+                >
 
-              <div
-                className="appointment-item"
-                key={doctor._id}
-              >
+                  <div>
 
-                <div>
+                    <strong>
+                      {doctor.name}
+                    </strong>
 
-                  <strong>
-                    {doctor.name}
-                  </strong>
+                    <p>
+                      Doctor ID: {doctor._id}
+                    </p>
 
-                  <p>
-                    Doctor ID: {doctor._id}
-                  </p>
+                    <p>
+                      Email: {doctor.email}
+                    </p>
 
-                  <p>
-                    Email: {doctor.email}
-                  </p>
+                    <p>
+                      Department: {doctor.specialization}
+                    </p>
 
-                  <p>
-                    Department: {doctor.specialization}
-                  </p>
+                    <p>
+                      Status: {doctor.status || 'Available'}
+                    </p>
 
-                  <p>
-                    Status: {doctor.status || 'Available'}
-                  </p>
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      toggleDoctorStatus(doctor._id)
+                    }
+                  >
+                    {(doctor.status || 'Available') === 'Available'
+                      ? 'Set Unavailable'
+                      : 'Set Available'}
+                  </button>
 
                 </div>
-
-                <button
-                  onClick={() =>
-                    toggleDoctorStatus(doctor._id)
-                  }
-                >
-                  {(doctor.status || 'Available') === 'Available'
-                    ? 'Set Unavailable'
-                    : 'Set Available'}
-                </button>
-
-              </div>
-
-            ))}
+              ))
+            )}
 
           </div>
-
         )}
 
         {showAppointments && (
-
           <div className="dashboard-section">
 
             <h2>Manage Appointments</h2>
 
-            {appointments.map((appointment) => (
+            {appointments.length === 0 ? (
+              <p>No appointments available.</p>
+            ) : (
+              appointments.map(appointment => (
+                <div
+                  className="appointment-item"
+                  key={appointment._id}
+                >
 
-              <div
-                className="appointment-item"
-                key={appointment.id}
-              >
+                  <div>
 
-                <div>
+                    <strong>
+                      {appointment.patientName}
+                    </strong>
 
-                  <strong>
-                    {appointment.patient}
-                  </strong>
+                    <p>
+                      Appointment ID: {appointment._id}
+                    </p>
 
-                  <p>
-                    Appointment ID: {appointment.id}
-                  </p>
+                    <p>
+                      Patient Email: {appointment.patientEmail}
+                    </p>
 
-                  <p>
-                    Doctor: {appointment.doctor}
-                  </p>
+                    <p>
+                      Doctor: {appointment.doctorName}
+                    </p>
 
-                  <p>
-                    Date: {appointment.date}
-                  </p>
+                    <p>
+                      Department: {appointment.department}
+                    </p>
 
-                  <p>
-                    Time: {appointment.time}
-                  </p>
+                    <p>
+                      Date: {appointment.date}
+                    </p>
 
-                  <p>
-                    Status: {appointment.status}
-                  </p>
+                    <p>
+                      Time: {appointment.time}
+                    </p>
+
+                    <p>
+                      Token: {appointment.token || 'Not assigned'}
+                    </p>
+
+                    <p>
+                      Status: {appointment.status}
+                    </p>
+
+                  </div>
 
                 </div>
-
-                {appointment.status !== 'Cancelled' && (
-
-                  <button
-                    onClick={() =>
-                      cancelAppointment(appointment.id)
-                    }
-                  >
-                    Cancel
-                  </button>
-
-                )}
-
-              </div>
-
-            ))}
+              ))
+            )}
 
           </div>
-
         )}
 
         {showQueues && (
-
           <div className="queue-section">
 
             <h2>Monitor Queues</h2>
@@ -572,114 +545,66 @@ function AdminDashboard({ setPage, currentUser }) {
               Monitor the current queue status of doctors.
             </p>
 
-            <div className="queue-info">
+            {doctors.length === 0 ? (
+              <p>No doctors available.</p>
+            ) : (
+              doctors.map(doctor => {
 
-              <div>
+                const doctorAppointments = activeAppointments.filter(
+                  appointment =>
+                    appointment.doctorName === doctor.name
+                )
 
-                <h3>
-                  Dr. Priya
-                </h3>
+                const doctorQueue =
+                  doctorAppointments.length > 0
+                    ? queueData[doctorAppointments[0]._id]
+                    : null
 
-                <span>
-                  Token 101
-                </span>
+                return (
+                  <div
+                    className="queue-info"
+                    key={doctor._id}
+                  >
 
-              </div>
+                    <div>
+                      <h3>{doctor.name}</h3>
+                      <span>
+                        {doctor.specialization}
+                      </span>
+                    </div>
 
-              <div>
+                    <div>
+                      <h3>Status</h3>
+                      <span>
+                        {doctor.status || 'Available'}
+                      </span>
+                    </div>
 
-                <h3>
-                  Now Serving
-                </h3>
+                    <div>
+                      <h3>Queue</h3>
 
-                <span>
-                  101
-                </span>
+                      {doctorQueue ? (
+                        <span>
+                          Current Token: {doctorQueue.currentToken || 'None'}
+                          <br />
+                          Patients Ahead: {doctorQueue.patientsAhead}
+                          <br />
+                          Wait Time: {doctorQueue.waitTime} minutes
+                        </span>
+                      ) : (
+                        <span>
+                          No active queue
+                        </span>
+                      )}
 
-              </div>
+                    </div>
 
-              <div>
-
-                <h3>
-                  Patients Waiting
-                </h3>
-
-                <span>
-                  3
-                </span>
-
-              </div>
-
-              <div>
-
-                <h3>
-                  Status
-                </h3>
-
-                <span>
-                  Active
-                </span>
-
-              </div>
-
-            </div>
-
-            <br />
-
-            <div className="queue-info">
-
-              <div>
-
-                <h3>
-                  Dr. Arun
-                </h3>
-
-                <span>
-                  Token 201
-                </span>
-
-              </div>
-
-              <div>
-
-                <h3>
-                  Now Serving
-                </h3>
-
-                <span>
-                  201
-                </span>
-
-              </div>
-
-              <div>
-
-                <h3>
-                  Patients Waiting
-                </h3>
-
-                <span>
-                  2
-                </span>
-
-              </div>
-
-              <div>
-
-                <h3>
-                  Status
-                </h3>
-
-                <span>
-                  Active
-                </span>
-
-              </div>
-
-            </div>
+                  </div>
+                )
+              })
+            )}
 
           </div>
-
         )}
 
         <div className="dashboard-grid">
@@ -688,25 +613,11 @@ function AdminDashboard({ setPage, currentUser }) {
 
             <h2>Departments</h2>
 
-            <p>
-              Cardiology
-            </p>
-
-            <p>
-              Dermatology
-            </p>
-
-            <p>
-              General Medicine
-            </p>
-
-            <p>
-              Orthopedics
-            </p>
-
-            <p>
-              Pediatrics
-            </p>
+            <p>Cardiology</p>
+            <p>Dermatology</p>
+            <p>General Medicine</p>
+            <p>Orthopedics</p>
+            <p>Pediatrics</p>
 
             <button>
               Manage Departments
@@ -719,15 +630,15 @@ function AdminDashboard({ setPage, currentUser }) {
             <h2>Notifications</h2>
 
             <p>
-              2 new doctor availability updates.
+              Doctor availability is updated from the database.
             </p>
 
             <p>
-              5 appointments scheduled today.
+              Appointment data is loaded from MongoDB.
             </p>
 
             <p>
-              Queue monitoring is active.
+              Queue information is calculated from active appointments.
             </p>
 
             <button>
